@@ -485,10 +485,6 @@ void mergeBranch(const string& targetBranch) {
             cout << "Merged change from " << targetBranch << ": " << filename << "\n";
         }
     }
-
-    cout << "Merge complete. Please resolve conflicts and commit the result.\n";
-}
-
 void diffCommits(const string& hash1, const string& hash2) {
     const string repoPath = ".minigit";
 
