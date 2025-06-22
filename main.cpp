@@ -349,7 +349,7 @@ void checkoutTarget(const string& target) {
 }
 
 void mergeBranch(const string& targetBranch) {
-    string repoPath = ".minigit";
+    const string repoPath = ".minigit";
 
     // 1. Get current branch from HEAD
     ifstream headFile(repoPath + "/HEAD.txt");
@@ -371,50 +371,37 @@ void mergeBranch(const string& targetBranch) {
         return;
     }
 
-    // 2. Get commit hashes
-    ifstream currentFile(currentBranchPath), targetFile(targetBranchPath);
+    // 2. Read latest commit hashes for both branches
     string currentHash, targetHash;
-    getline(currentFile, currentHash);
-    getline(targetFile, targetHash);
-    currentFile.close(); targetFile.close();
+    {
+        ifstream curFile(currentBranchPath), tgtFile(targetBranchPath);
+        getline(curFile, currentHash);
+        getline(tgtFile, targetHash);
+    }
 
-    // 3. Find LCA
-    set<string> visited;
-    string walker = currentHash;
-
-    while (walker != "null") {
-        visited.insert(walker);
-
-        ifstream commitFile(repoPath + "/commits/" + walker + ".txt");
-        string line, parent = "null";
-        while (getline(commitFile, line)) {
+    // 3. Find Lowest Common Ancestor (LCA)
+    auto findParent = [&](const string& commitHash) -> string {
+        ifstream commit(repoPath + "/commits/" + commitHash + ".txt");
+        string line;
+        while (getline(commit, line)) {
             if (line.rfind("Parent:", 0) == 0) {
-                parent = line.substr(8);
-                break;
+                return line.substr(8);
             }
         }
-        commitFile.close();
-        walker = parent;
+        return "null";
+    };
+
+    set<string> visited;
+    for (string walker = currentHash; walker != "null"; walker = findParent(walker)) {
+        visited.insert(walker);
     }
 
     string lca = "null";
-    walker = targetHash;
-    while (walker != "null") {
+    for (string walker = targetHash; walker != "null"; walker = findParent(walker)) {
         if (visited.count(walker)) {
             lca = walker;
             break;
         }
-
-        ifstream commitFile(repoPath + "/commits/" + walker + ".txt");
-        string line, parent = "null";
-        while (getline(commitFile, line)) {
-            if (line.rfind("Parent:", 0) == 0) {
-                parent = line.substr(8);
-                break;
-            }
-        }
-        commitFile.close();
-        walker = parent;
     }
 
     if (lca == "null") {
@@ -425,45 +412,45 @@ void mergeBranch(const string& targetBranch) {
     cout << "Merging branch '" << targetBranch << "' into '" << currentBranch << "'\n";
     cout << "Lowest Common Ancestor: " << lca << "\n";
 
-    // 4. Load file lists for each commit
+    // 4. Load files from each commit
     auto loadFiles = [&](const string& hash) {
         map<string, string> files;
         ifstream file(repoPath + "/commits/" + hash + ".txt");
         string line;
-        bool inFiles = false;
+        bool readingFiles = false;
+
         while (getline(file, line)) {
             if (line == "Files:") {
-                inFiles = true;
+                readingFiles = true;
                 continue;
             }
-            if (inFiles && !line.empty()) {
+            if (readingFiles && !line.empty()) {
                 istringstream ss(line);
                 string filename, blob;
                 ss >> filename >> blob;
                 files[filename] = blob;
             }
         }
-        file.close();
         return files;
     };
 
-    auto lcaFiles = loadFiles(lca);
+    auto lcaFiles     = loadFiles(lca);
     auto currentFiles = loadFiles(currentHash);
-    auto targetFiles = loadFiles(targetHash);
+    auto targetFiles  = loadFiles(targetHash);
 
     // 5. Perform 3-way merge
     for (const auto& [filename, lcaBlob] : lcaFiles) {
-        string blobA = currentFiles[filename];
-        string blobB = targetFiles[filename];
+        const string& blobA = currentFiles[filename];
+        const string& blobB = targetFiles[filename];
 
         if (blobA == blobB || blobB.empty()) {
-            continue; // same or deleted in target, no merge needed
+            continue; // identical or deleted in target branch
         }
 
-        if (blobA != lcaBlob && blobB != lcaBlob && blobA != blobB) {
+        bool bothModified = (blobA != lcaBlob) && (blobB != lcaBlob) && (blobA != blobB);
+        if (bothModified) {
             cout << "CONFLICT: both modified " << filename << "\n";
 
-            // Write conflict marker file
             ofstream out(filename);
             out << "<<<<<<< current\n";
             ifstream a(repoPath + "/objects/" + blobA);
@@ -476,19 +463,18 @@ void mergeBranch(const string& targetBranch) {
             out << "\n>>>>>>> " << targetBranch << "\n";
             out.close();
         } else {
-            // Apply non-conflicting change
-            string blob = blobB;
-            ifstream in(repoPath + "/objects/" + blob);
+            const string& chosenBlob = blobB;
+            ifstream in(repoPath + "/objects/" + chosenBlob);
             ofstream out(filename);
             out << in.rdbuf();
             in.close();
             out.close();
+
             cout << "Merged change from " << targetBranch << ": " << filename << "\n";
         }
     }
-
-    cout << "Merge complete. Please resolve conflicts and commit the result.\n";
 }
+
 
 void diffCommits(const string& hash1, const string& hash2) {
     string repoPath = ".minigit";
