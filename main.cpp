@@ -263,7 +263,6 @@ void createBranch(const string& branchName) {
                       << currentBranch << "'.\n";
             return;
         }
-
         ifstream branchFile(branchFilePath);
         getline(branchFile, currentCommitHash);
         branchFile.close();
@@ -473,45 +472,51 @@ void mergeBranch(const string& targetBranch) {
             cout << "Merged change from " << targetBranch << ": " << filename << "\n";
         }
     }
-}
-
 
 void diffCommits(const string& hash1, const string& hash2) {
-    string repoPath = ".minigit";
+    const string repoPath = ".minigit";
 
+    // Helper to load filename -> blobHash map from a commit
     auto loadFiles = [&](const string& hash) -> map<string, string> {
         map<string, string> files;
         ifstream commitFile(repoPath + "/commits/" + hash + ".txt");
+
         if (!commitFile.is_open()) {
             cout << "Commit not found: " << hash << "\n";
             return files;
         }
 
         string line;
-        bool inFiles = false;
+        bool inFilesSection = false;
+
         while (getline(commitFile, line)) {
             if (line == "Files:") {
-                inFiles = true;
+                inFilesSection = true;
                 continue;
             }
-            if (inFiles && !line.empty()) {
+
+            if (inFilesSection && !line.empty()) {
                 istringstream ss(line);
                 string filename, blobHash;
                 ss >> filename >> blobHash;
                 files[filename] = blobHash;
             }
         }
+
         commitFile.close();
         return files;
     };
 
-    auto files1 = loadFiles(hash1);
-    auto files2 = loadFiles(hash2);
+    // Load file mappings from both commits
+    map<string, string> files1 = loadFiles(hash1);
+    map<string, string> files2 = loadFiles(hash2);
 
+    // Compare only files that exist in both commits
     for (const auto& [filename, blob1] : files1) {
-        if (files2.find(filename) == files2.end()) continue; // only diff shared files
+        if (!files2.count(filename)) continue;
 
         string blob2 = files2[filename];
+
         ifstream file1(repoPath + "/objects/" + blob1);
         ifstream file2(repoPath + "/objects/" + blob2);
 
@@ -521,15 +526,16 @@ void diffCommits(const string& hash1, const string& hash2) {
         while (getline(file1, line)) lines1.push_back(line);
         while (getline(file2, line)) lines2.push_back(line);
 
-        file1.close(); file2.close();
+        file1.close();
+        file2.close();
 
         cout << "Diff: " << filename << "\n";
 
         size_t maxLines = max(lines1.size(), lines2.size());
 
         for (size_t i = 0; i < maxLines; ++i) {
-            string a = i < lines1.size() ? lines1[i] : "";
-            string b = i < lines2.size() ? lines2[i] : "";
+            string a = (i < lines1.size()) ? lines1[i] : "";
+            string b = (i < lines2.size()) ? lines2[i] : "";
 
             if (a != b) {
                 if (!a.empty()) cout << "- " << a << "\n";
@@ -540,6 +546,7 @@ void diffCommits(const string& hash1, const string& hash2) {
         cout << "--------------------------\n";
     }
 }
+
 
 // ---------------------
 // Main Function
