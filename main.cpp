@@ -263,7 +263,6 @@ void createBranch(const string& branchName) {
                       << currentBranch << "'.\n";
             return;
         }
-
         ifstream branchFile(branchFilePath);
         getline(branchFile, currentCommitHash);
         branchFile.close();
