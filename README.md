@@ -34,6 +34,16 @@
 
 ---
 
+## Demonstration Videos
+
+- 🔧 **General Features Demo** (init, add, commit, branch, checkout, merge, log):  
+  👉 [Watch here](https://www.loom.com/share/f661ea8109714678bb63bea0b20a1c6c?sid=9eac0d9a-a577-4bd5-82f4-0bc1b23bff7d)
+
+- 🧾 **Diff Feature Demo**:  
+  👉 [Watch here](https://www.loom.com/share/514524aa998441d39b88a8d8be2fd7ca?sid=8964ad65-8c34-475d-a4df-bde18f167a5c)
+
+---
+
 ## How to Build
 
 > Requires: C++17 or later
