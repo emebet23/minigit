@@ -1,0 +1,76 @@
+void commitChanges(const string& message) {
+    const string repoPath = ".minigit";
+    const string indexPath = repoPath + "/index.txt";
+
+    if (!fs::exists(repoPath) || !fs::exists(indexPath)) {
+        cout << "Nothing to commit. Stage files first using './minigit add <file>'.\n";
+        return;
+    }
+
+    // Read staged content
+    ifstream indexFile(indexPath);
+    stringstream stagedStream;
+    stagedStream << indexFile.rdbuf();
+    string stagedContent = stagedStream.str();
+    indexFile.close();
+
+    if (stagedContent.empty()) {
+        cout << "No files staged for commit.\n";
+        return;
+    }
+
+    // Get parent commit hash from HEAD
+    string parentHash = "null";
+    ifstream headFile(repoPath + "/HEAD.txt");
+    string headContent;
+    if (getline(headFile, headContent)) {
+        if (headContent.rfind("ref:", 0) == 0) {
+            string branchName = headContent.substr(5);
+            ifstream branchFile(repoPath + "/branches/" + branchName + ".txt");
+            if (branchFile.is_open()) {
+                getline(branchFile, parentHash);
+                branchFile.close();
+            }
+        } else {
+            parentHash = headContent;
+        }
+    }
+    headFile.close();
+
+    // Generate commit hash and content
+    string timestamp = getCurrentTimestamp();
+    string commitData = message + timestamp + stagedContent;
+    string commitHash = simpleHash(commitData);
+    string commitFilePath = repoPath + "/commits/" + commitHash + ".txt";
+
+    // Write commit file
+    ofstream commitFile(commitFilePath);
+    commitFile << "Commit: " << commitHash << "\n";
+    commitFile << "Parent: " << parentHash << "\n";
+    commitFile << "Date: " << timestamp;
+    commitFile << "Message: " << message << "\n";
+    commitFile << "Files:\n" << stagedContent;
+    commitFile.close();
+
+    // Update HEAD (handle branch or detached state)
+    ifstream headRecheck(repoPath + "/HEAD.txt");
+    getline(headRecheck, headContent);
+    headRecheck.close();
+
+    if (headContent.rfind("ref:", 0) == 0) {
+        string branchName = headContent.substr(5);
+        ofstream branchFile(repoPath + "/branches/" + branchName + ".txt");
+        branchFile << commitHash << "\n";
+        branchFile.close();
+    } else {
+        ofstream newHeadFile(repoPath + "/HEAD.txt");
+        newHeadFile << commitHash << "\n";
+        newHeadFile.close();
+    }
+
+    // Clear staging area
+    ofstream clearIndex(indexPath, ios::trunc);
+    clearIndex.close();
+
+    cout << "Committed with hash: " << commitHash << "\n";
+}
